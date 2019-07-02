@@ -1,6 +1,9 @@
 {
+    "name": "janalis/bumpversion",
     "type": "project",
-    "license": "proprietary",
+    "description": "A small command line tool aiming to simplify releasing process by updating all version strings in your source code by the correct increment.",
+    "homepage": "https://github.com/janalis/bumpversion",
+    "license": "MIT",
     "autoload": {
         "psr-4": {
             "App\\": "src/"
