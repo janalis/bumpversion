@@ -3,6 +3,7 @@ bumpversion.yaml
 /bin/*
 !/bin/bumpversion
 !/bin/bumpversion.php
+vendor/*
 
 ###> friendsofphp/php-cs-fixer ###
 .php_cs.cache
