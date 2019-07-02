@@ -1,0 +1,14 @@
+bumpversion.phar
+bumpversion.yaml
+/bin/*
+!/bin/bumpversion
+!/bin/bumpversion.php
+
+###> friendsofphp/php-cs-fixer ###
+.php_cs.cache
+###< friendsofphp/php-cs-fixer ###
+
+###> phpunit/phpunit ###
+/phpunit.xml
+.phpunit.result.cache
+###< phpunit/phpunit ###
