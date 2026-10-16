@@ -7,13 +7,12 @@ Version numbers follow [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.
 
 ### Added
 
-- Built-in release preparation, historical notes, GitHub publishing, and Packagist verification commands.
-- PSR-18 publishing with HTTPlug discovery, bundled Symfony transport, and optional Guzzle support.
+- Built-in release preparation, notes, GitHub publishing, and Packagist verification.
+- HTTP publishing with Symfony or Guzzle.
 
 ### Changed
 
-- Replace release helper scripts with native commands and use tag-only GitHub release titles.
-- Upgrade pinned GitHub Actions for CI, release artifacts, and documentation deployment.
+- Simplify release automation and use tag-only release titles.
 
 ## [0.1.0] - 2026-10-16
 
