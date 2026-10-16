@@ -56,7 +56,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
           # shellcheck disable=SC2016
           php -r 'require "vendor/autoload.php"; $v = Janalis\Bumpversion\Version\SemanticVersion::parse(substr(getenv("RELEASE_TAG"), 1)); echo "prerelease=".($v->preRelease !== null ? "true" : "false").PHP_EOL;' >> "$GITHUB_OUTPUT"
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22'
           cache: npm
