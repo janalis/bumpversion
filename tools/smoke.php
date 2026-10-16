@@ -45,7 +45,7 @@ try {
     $source = $temporary.'/source';
     mkdir($source);
     foreach ($manifest as $entry) {
-        if (!(str_starts_with($entry, 'src/') || str_starts_with($entry, 'bin/') || in_array($entry, ['composer.json', 'LICENSE'], true))) {
+        if (!(str_starts_with($entry, 'src/') || str_starts_with($entry, 'bin/') || in_array($entry, ['composer.json', 'LICENSE', 'VERSION'], true))) {
             continue;
         }
         $destination = $source.'/'.$entry;
@@ -63,6 +63,10 @@ try {
     $run(['composer', 'install', '--no-interaction', '--no-plugins', '--no-scripts', '--no-progress'], $temporary);
     $consumer = $temporary.'/tools/bin/bumpversion';
     foreach ([$consumer, $root.'/dist/bumpversion.phar'] as $index => $binary) {
+        $versionOutput = $run([PHP_BINARY, $binary, '--version'], $temporary);
+        if (!str_contains($versionOutput, trim(file_get_contents($root.'/VERSION')))) {
+            throw new RuntimeException('Installed binary reports the wrong release version.');
+        }
         $workspace = $temporary.'/workspace-'.$index;
         mkdir($workspace);
         file_put_contents($workspace.'/VERSION', "1.2.3\n");

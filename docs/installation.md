@@ -1,10 +1,5 @@
 # Installation
 
-::: info Documentation preview
-This guide covers the upcoming modernized release. Composer installation commands
-apply once that release is published.
-:::
-
 ## Composer
 
 PHP 8.3–8.5 is tested in CI. Required PHP extensions are checked by Composer.

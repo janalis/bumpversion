@@ -21,7 +21,8 @@ Version numbers follow [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.
 
 - Dry-run previews, explicit target versions, independent commit/tag controls, and noninteractive initialization.
 - PHP 8.3–8.5 CI, dependency checks, regression tests, and installed-package smoke tests.
-- Verified release artifacts, SHA-256 checksums, and a manual build-only workflow.
+- Automated release preparation, versioned PHARs, curated GitHub release notes, and SHA-256 checksums.
+- Packagist publication through the GitHub webhook, with verification of the exact indexed commit.
 
 ### Fixed
 
@@ -30,4 +31,4 @@ Version numbers follow [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.
 - False file-prefix matches, replacements inside larger versions, and unsafe symlink traversal.
 - Untracked-file checks, duplicate-tag preflight, and semantic-version precedence.
 
-[Unreleased]: https://github.com/janalis/bumpversion/commits/HEAD
+[Unreleased]: https://github.com/janalis/bumpversion/compare/0c7d1d1...HEAD

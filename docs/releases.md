@@ -38,16 +38,48 @@ Do not rerun `bump` blindly, as the stored version has already changed.
 
 ## Releasing this package
 
-1. Add user-visible changes under `Unreleased` in `CHANGELOG.md`.
-2. Run `make verify` and review the diff and archive manifest for confidential data.
-3. Release the curated Unreleased section into a dated version section and commit the release.
-4. Create and push a matching `vX.Y.Z` tag when ready to publish.
+Use **Actions → Release → Run workflow** on `master`. Set `version` to an exact
+SemVer value or `major`, `minor`, or `patch`. Leave `dry_run` enabled to prepare
+and verify the release without changing the repository or publishing.
 
-The Release workflow verifies the tagged source, builds an isolated production
-PHAR, checks the archive and installed CLI, and publishes a GitHub release using `CHANGELOG.md` as release notes, with
-`bumpversion.phar`, `SHA256SUMS`, and `manifest.txt`. The workflow does not create
-commits or tags. Configure Packagist's normal GitHub integration separately if needed.
+For a real release, disable `dry_run`. The workflow:
 
-Running the Release workflow manually builds and uploads artifacts without
-publishing. CI and release jobs use pinned actions; only the publication job gets
-write access. No deployment credentials are required for local builds.
+1. Updates `VERSION`, `bumpversion.yaml.dist`, and the curated Unreleased section.
+2. Checks the dated release notes and runs `make verify`.
+3. Commits the release and pushes its annotated tag and `master` atomically.
+4. Publishes the verified PHAR, checksum, and manifest to GitHub with only that
+   version's curated release notes.
+5. Confirms Packagist exposes the version at the exact release commit.
+6. Refreshes GitHub Pages from the released commit.
+
+Release commits use the dispatching GitHub account's public noreply identity.
+The PHAR and Composer installation both report the version from `VERSION`.
+Concurrent releases are serialized. A rejected push publishes nothing; inspect
+and rerun preparation after resolving the branch or tag conflict.
+
+### Packagist
+
+The repository's Packagist GitHub push webhook indexes new tags automatically.
+No publishing credentials are needed for that path. Optionally configure
+`PACKAGIST_USERNAME` and a safe `PACKAGIST_TOKEN` as GitHub Actions secrets to
+request an immediate refresh through the [Packagist API](https://packagist.org/apidoc).
+Credentials never belong in source files or URLs.
+
+The workflow polls Packagist for up to five minutes and fails if the version is
+missing or references a different commit. If indexing is delayed, check the webhook
+and rerun the failed job. GitHub release publishing is idempotent: reruns verify
+the existing checksum rather than replacing published assets.
+
+### Preparing locally
+
+Start from a clean checkout with dependencies installed:
+
+```sh
+composer release:prepare -- 0.2.0
+make verify
+```
+
+This updates release files locally without committing, tagging, or publishing.
+After review, commit the release and push its `vX.Y.Z` tag to trigger the same
+GitHub and Packagist publishing pipeline. Tag-triggered releases require the tag,
+`VERSION`, release configuration, and dated changelog section to agree.

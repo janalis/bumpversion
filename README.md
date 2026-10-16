@@ -39,8 +39,7 @@ composer require --dev janalis/bumpversion
 ```
 
 See [Installation](https://janalis.github.io/bumpversion/installation) for Composer,
-standalone PHARs, and building from source. The documentation currently previews
-the upcoming modernized release.
+standalone PHARs, and building from source.
 
 ## Quick start
 

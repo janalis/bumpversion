@@ -1,10 +1,5 @@
 # Quick start
 
-::: info Documentation preview
-This guide covers the upcoming modernized release. Composer installation commands
-apply once that release is published.
-:::
-
 Bumpversion is a PHP command-line tool for keeping version strings in sync across
 a project. It uses Semantic Versioning 2.0.0 and can release curated Keep a
 Changelog entries alongside your code.

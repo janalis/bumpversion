@@ -49,6 +49,7 @@
             "@security"
         ],
         "security": "@composer audit",
-        "smoke": "@php tools/smoke.php"
+        "smoke": "@php tools/smoke.php",
+        "release:prepare": "@php tools/prepare-release.php"
     }
 }

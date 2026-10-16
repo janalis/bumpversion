@@ -8,7 +8,7 @@ use Symfony\Component\Console\Application;
 
 require $GLOBALS['_composer_autoload_path'] ?? __DIR__.'/../vendor/autoload.php';
 
-$application = new Application('bumpversion');
+$application = new Application('bumpversion', trim(file_get_contents(__DIR__.'/../VERSION')));
 $application->addCommand(new BumpCommand());
 $application->addCommand(new InitCommand());
 exit($application->run());

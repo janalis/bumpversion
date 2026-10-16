@@ -23,7 +23,7 @@ $remove = static function (string $directory) use (&$remove): void {
     rmdir($directory);
 };
 try {
-    foreach (['composer.json', 'composer.lock', 'LICENSE'] as $file) {
+    foreach (['composer.json', 'composer.lock', 'LICENSE', 'VERSION'] as $file) {
         copy($root.'/'.$file, $stage.'/'.$file);
     }
     foreach (['src', 'bin'] as $directory) {
@@ -42,7 +42,7 @@ try {
     }
     $composer = getenv('BUMPVERSION_COMPOSER') ?: 'composer';
     (new Process([$composer, 'install', '--working-dir='.$stage, '--no-dev', '--no-plugins', '--no-scripts', '--prefer-dist', '--classmap-authoritative', '--no-interaction', '--no-progress']))->mustRun();
-    $files = ['composer.json' => $stage.'/composer.json', 'composer.lock' => $stage.'/composer.lock', 'LICENSE' => $stage.'/LICENSE'];
+    $files = ['composer.json' => $stage.'/composer.json', 'composer.lock' => $stage.'/composer.lock', 'LICENSE' => $stage.'/LICENSE', 'VERSION' => $stage.'/VERSION'];
     foreach (['src', 'bin'] as $directory) {
         $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($stage.'/'.$directory, FilesystemIterator::SKIP_DOTS));
         foreach ($iterator as $file) {
