@@ -5,6 +5,8 @@ Version numbers follow [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-16
+
 ### Added
 
 - Built-in release preparation, notes, GitHub publishing, and Packagist verification.
@@ -42,5 +44,6 @@ Version numbers follow [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.
 - False file-prefix matches, replacements inside larger versions, and unsafe symlink traversal.
 - Untracked-file checks, duplicate-tag preflight, and semantic-version precedence.
 
-[Unreleased]: https://github.com/janalis/bumpversion/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/janalis/bumpversion/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/janalis/bumpversion/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/janalis/bumpversion/compare/0c7d1d1...v0.1.0
