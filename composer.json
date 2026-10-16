@@ -6,13 +6,19 @@
     "license": "MIT",
     "require": {
         "php": "^8.3",
+        "nyholm/psr7": "^1.8",
+        "php-http/discovery": "^1.20",
+        "psr/http-client": "^1.0",
+        "psr/http-factory": "^1.0",
         "symfony/console": "^7.4",
         "symfony/finder": "^7.4",
+        "symfony/http-client": "^7.4",
         "symfony/process": "^7.4",
         "symfony/yaml": "^7.4"
     },
     "require-dev": {
         "friendsofphp/php-cs-fixer": "^3.0",
+        "guzzlehttp/guzzle": "^7.9",
         "phpstan/phpstan": "^2.0",
         "phpunit/phpunit": "^12.0"
     },
@@ -33,6 +39,9 @@
         "sort-packages": true,
         "platform": {
             "php": "8.3.0"
+        },
+        "allow-plugins": {
+            "php-http/discovery": false
         }
     },
     "scripts": {
@@ -50,6 +59,6 @@
         ],
         "security": "@composer audit",
         "smoke": "@php tools/smoke.php",
-        "release:prepare": "@php tools/prepare-release.php"
+        "release:prepare": "@php bin/bumpversion release:prepare"
     }
 }

@@ -43,19 +43,17 @@ jobs:
         if: github.event_name == 'workflow_dispatch'
         env:
           REQUESTED_VERSION: ${{ inputs.version }}
-        run: php tools/prepare-release.php "$REQUESTED_VERSION" >> "$GITHUB_OUTPUT"
+        run: php bin/bumpversion release:prepare "$REQUESTED_VERSION" --tag-prefix=v --format=github >> "$GITHUB_OUTPUT"
       - name: Validate release metadata and notes
         id: metadata
         env:
           RELEASE_TAG: ${{ steps.prepare.outputs.tag || github.ref_name }}
         run: |
-          php tools/release-notes.php "$RELEASE_TAG" > "$RUNNER_TEMP/release-notes.md"
-          {
-            echo "tag=$RELEASE_TAG"
-            echo "version=${RELEASE_TAG#v}"
-          } >> "$GITHUB_OUTPUT"
-          # shellcheck disable=SC2016
-          php -r 'require "vendor/autoload.php"; $v = Janalis\Bumpversion\Version\SemanticVersion::parse(substr(getenv("RELEASE_TAG"), 1)); echo "prerelease=".($v->preRelease !== null ? "true" : "false").PHP_EOL;' >> "$GITHUB_OUTPUT"
+          php bin/bumpversion release:notes --tag-prefix=v --format=json > "$RUNNER_TEMP/release.json"
+          test "$RELEASE_TAG" = "$(jq -r .tag "$RUNNER_TEMP/release.json")"
+          test "$(cat VERSION)" = "$(jq -r .version "$RUNNER_TEMP/release.json")"
+          jq -r .notes "$RUNNER_TEMP/release.json" > "$RUNNER_TEMP/release-notes.md"
+          jq -r '"tag=\(.tag)\nversion=\(.version)\nprerelease=\(.prerelease)"' "$RUNNER_TEMP/release.json" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22'
@@ -75,7 +73,7 @@ jobs:
           git config user.name "$RELEASE_ACTOR"
           git config user.email "$RELEASE_ACTOR_ID+$RELEASE_ACTOR@users.noreply.github.com"
           git commit -m "Release $RELEASE_TAG" -- VERSION bumpversion.yaml.dist CHANGELOG.md
-          git tag -a "$RELEASE_TAG" -m "Bumpversion $RELEASE_TAG"
+          git tag -a "$RELEASE_TAG" -m "$RELEASE_TAG"
           git push --atomic origin HEAD:master "refs/tags/$RELEASE_TAG"
       - name: Record release commit
         id: commit
@@ -92,29 +90,30 @@ jobs:
       contents: write
       actions: read
     steps:
-      - name: Download verified build
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.build.outputs.sha }}
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
+        with:
+          php-version: '8.3'
+          tools: composer:v2
+          coverage: none
+      - run: composer install --no-dev --no-plugins --no-interaction --prefer-dist --no-progress
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: bumpversion-dist
+          path: dist
+      - name: Publish verified GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          RUN_ID: ${{ github.run_id }}
-        run: gh run download "$RUN_ID" --name bumpversion-dist --dir dist
-      - name: Publish GitHub release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          RELEASE_TAG: ${{ needs.build.outputs.tag }}
+          RELEASE_REPOSITORY: ${{ github.repository }}
+          RELEASE_VERSION: ${{ needs.build.outputs.version }}
           RELEASE_SHA: ${{ needs.build.outputs.sha }}
-          PRERELEASE: ${{ needs.build.outputs.prerelease }}
-        run: |
-          if gh release view "$RELEASE_TAG" > /dev/null 2>&1; then
-            gh release download "$RELEASE_TAG" --pattern SHA256SUMS --dir "$RUNNER_TEMP/existing"
-            cmp dist/SHA256SUMS "$RUNNER_TEMP/existing/SHA256SUMS"
-            echo "Release already published with the verified checksum."
-          else
-            extra=()
-            if [ "$PRERELEASE" = true ]; then extra+=(--prerelease); fi
-            gh release create "$RELEASE_TAG" dist/bumpversion.phar dist/SHA256SUMS dist/manifest.txt --verify-tag --target "$RELEASE_SHA" --title "Bumpversion $RELEASE_TAG" --notes-file dist/release-notes.md "${extra[@]}"
-          fi
+        run: >-
+          php bin/bumpversion release:github --repository="$RELEASE_REPOSITORY"
+          --release-version="$RELEASE_VERSION" --commit="$RELEASE_SHA" --tag-prefix=v
+          --notes-file=dist/release-notes.md --asset=dist/bumpversion.phar
+          --asset=dist/SHA256SUMS --asset=dist/manifest.txt
   packagist:
     needs: [build, publish]
     runs-on: ubuntu-latest
@@ -128,25 +127,15 @@ jobs:
           tools: composer:v2
           coverage: none
       - run: composer install --no-dev --no-interaction --prefer-dist --no-progress
-      - name: Request immediate Packagist refresh when credentials are configured
+      - name: Refresh and verify the exact Packagist release
         env:
           PACKAGIST_USERNAME: ${{ secrets.PACKAGIST_USERNAME }}
           PACKAGIST_TOKEN: ${{ secrets.PACKAGIST_TOKEN }}
-        run: |
-          if [ -n "$PACKAGIST_USERNAME" ] && [ -n "$PACKAGIST_TOKEN" ]; then
-            curl --fail --silent --show-error --max-time 30 -X POST \
-              -H 'Content-Type: application/json' \
-              -H "Authorization: Bearer $PACKAGIST_USERNAME:$PACKAGIST_TOKEN" \
-              -d '{"repository":"https://github.com/janalis/bumpversion"}' \
-              https://packagist.org/api/update-package > /dev/null
-          else
-            echo "Using the configured Packagist GitHub push webhook."
-          fi
-      - name: Verify Packagist indexed the exact release commit
-        env:
           RELEASE_VERSION: ${{ needs.build.outputs.version }}
           RELEASE_SHA: ${{ needs.build.outputs.sha }}
-        run: php tools/verify-packagist.php "$RELEASE_VERSION" "$RELEASE_SHA"
+        run: >-
+          php bin/bumpversion release:packagist --release-version="$RELEASE_VERSION"
+          --commit="$RELEASE_SHA" --package=janalis/bumpversion
   docs:
     if: github.event_name == 'workflow_dispatch' && !inputs.dry_run
     needs: [build, publish]

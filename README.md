@@ -69,6 +69,8 @@ Nothing is pushed.
   edit plans and permission preservation.
 - **Optional Git releases**: independent `--commit` and `--tag` controls, without
   staging unrelated files.
+- **Built-in publishing**: prepare releases, extract curated notes, and publish
+  verified GitHub assets and Packagist versions with PSR-18 HTTP clients.
 
 ## Configuration
 

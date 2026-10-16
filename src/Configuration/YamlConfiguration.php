@@ -12,8 +12,11 @@ final class YamlConfiguration
     /** @var array<string, mixed> */
     private array $original = [];
 
-    /** @param list<string> $paths */
-    public function __construct(public array $paths, public SemanticVersion $version, public ?string $changelog = null)
+    /**
+     * @param list<string>          $paths
+     * @param array<string, string> $publishing
+     */
+    public function __construct(public array $paths, public SemanticVersion $version, public ?string $changelog = null, public array $publishing = [])
     {
     }
 
@@ -38,7 +41,19 @@ final class YamlConfiguration
             throw new \InvalidArgumentException('Changelog must be a nonempty path or null.');
         }
 
-        $result = new self($paths, SemanticVersion::parse($config['version']), $changelog);
+        $publishing = $config['publishing'] ?? [];
+        if (!is_array($publishing)) {
+            throw new \InvalidArgumentException('Publishing settings must be a mapping.');
+        }
+        foreach ($publishing as $key => $value) {
+            if (!in_array($key, ['github_repository', 'packagist_package', 'http_client'], true) || !is_string($value) || '' === trim($value)) {
+                throw new \InvalidArgumentException('Invalid publishing setting. Store credentials in environment variables.');
+            }
+        }
+        if (!in_array($publishing['http_client'] ?? 'auto', ['auto', 'symfony', 'guzzle'], true)) {
+            throw new \InvalidArgumentException('HTTP client must be auto, symfony, or guzzle.');
+        }
+        $result = new self($paths, SemanticVersion::parse($config['version']), $changelog, $publishing);
         $result->original = $data;
 
         return $result;
@@ -48,6 +63,10 @@ final class YamlConfiguration
     {
         $data = $this->original;
         $data['bumpversion'] = array_replace($data['bumpversion'] ?? [], ['version' => (string) $this->version, 'paths' => $this->paths, 'changelog' => $this->changelog]);
+
+        if ([] !== $this->publishing || isset($data['bumpversion']['publishing'])) {
+            $data['bumpversion']['publishing'] = $this->publishing;
+        }
 
         return Yaml::dump($data, 4);
     }

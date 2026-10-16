@@ -7,7 +7,7 @@ namespace Janalis\Bumpversion\Command;
 use Janalis\Bumpversion\Changelog\KeepAChangelog;
 use Janalis\Bumpversion\Configuration\YamlConfiguration;
 use Janalis\Bumpversion\Release\ReleasePlanner;
-use Janalis\Bumpversion\Version\SemanticVersion;
+use Janalis\Bumpversion\Release\VersionTransition;
 use Janalis\Bumpversion\VersionControlSystem\GitVersionControlSystem;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
@@ -44,10 +44,7 @@ final class BumpCommand extends Command
         $filename = YamlConfiguration::resolve($input->getOption('configuration'));
         $config = YamlConfiguration::load($filename);
         $current = (string) $config->version;
-        $next = null !== $target ? SemanticVersion::parse($target) : $config->version->next($input->getOption('type'), $input->getOption('pre-release'));
-        if ($next->compare($config->version) <= 0) {
-            throw new \InvalidArgumentException('Target version must have higher SemVer precedence than the current version.');
-        }
+        $next = VersionTransition::next($config->version, $input->getOption('type'), $input->getOption('pre-release'), $target);
         $prefix = $input->getOption('tag-prefix');
         if (null === $prefix && null !== $config->changelog) {
             $contents = file_get_contents(ReleasePlanner::path(dirname($filename), $config->changelog));

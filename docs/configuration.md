@@ -87,3 +87,9 @@ paths, and Git actions. It writes no files, commits, or tags.
 A successful command exits with `0`. Invalid inputs, missing files, failed writes,
 and Git failures exit nonzero with a diagnostic. Use the exit status in CI;
 do not parse human-readable output as a stable machine interface.
+
+## Release automation
+
+`release:prepare`, `release:notes`, `release:github`, and `release:packagist`
+share the project configuration. See [Releases](releases.md) for options,
+`bumpversion.publishing` defaults, authentication, and HTTP client selection.

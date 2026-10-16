@@ -49,6 +49,46 @@ final class KeepAChangelog
         return $lines;
     }
 
+    public function notes(string $contents, SemanticVersion $version): string
+    {
+        $text = str_replace("\r\n", "\n", $contents);
+        $lines = explode("\n", $text);
+        $visible = self::visibleLines($lines);
+        $start = null;
+        $end = count($lines);
+        $date = null;
+        $yanked = false;
+        $references = [];
+        foreach ($visible as $i => $line) {
+            if (preg_match('/^\[[^\]]+\]:[^\n]+$/', $line)) {
+                $references[] = $lines[$i];
+            }
+            if (preg_match('/^## \['.preg_quote((string) $version, '/').'\] - (\d{4}-\d{2}-\d{2})(?: \[YANKED\])?[ \t]*$/', $line, $match)) {
+                if (null !== $start) {
+                    throw new \RuntimeException('Duplicate release section.');
+                }
+                $start = $i + 1;
+                $date = $match[1];
+                $yanked = str_contains($line, '[YANKED]');
+            } elseif (null !== $start && $end === count($lines) && preg_match('/^##[ \t]+|^\[[^\]]+\]:/', $line)) {
+                $end = $i;
+            }
+        }
+        if (null === $start || null === $date) {
+            throw new \RuntimeException('No dated changelog section exists for this release.');
+        }
+        $parsed = \DateTimeImmutable::createFromFormat('!Y-m-d', $date);
+        if (false === $parsed || $parsed->format('Y-m-d') !== $date) {
+            throw new \RuntimeException('The release date is invalid.');
+        }
+        $body = trim(implode("\n", array_slice($lines, $start, $end - $start)));
+        if ('' === $body) {
+            throw new \RuntimeException('The release must have curated changelog entries.');
+        }
+
+        return '# '.$version.' - '.$date.($yanked ? ' [YANKED]' : '')."\n\n".$body."\n".([] !== $references ? "\n".implode("\n", $references)."\n" : '');
+    }
+
     public function release(string $contents, SemanticVersion $version, string $date, string $tagPrefix = ''): string
     {
         $parsed = \DateTimeImmutable::createFromFormat('!Y-m-d', $date);

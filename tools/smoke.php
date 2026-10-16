@@ -71,6 +71,12 @@ try {
         mkdir($workspace);
         file_put_contents($workspace.'/VERSION', "1.2.3\n");
         $run([PHP_BINARY, $binary, 'init', '--no-interaction', '--current-version=1.2.3', '--path=VERSION'], $workspace);
+        foreach (['release:prepare', 'release:notes', 'release:github', 'release:packagist'] as $command) {
+            $run([PHP_BINARY, $binary, $command, '--help'], $workspace);
+        }
+        $run([PHP_BINARY, $binary, 'release:packagist', '--package=example/package', '--commit='.str_repeat('1', 40), '--dry-run'], $workspace);
+        file_put_contents($workspace.'/notes.md', "# Synthetic release\n\n- A curated feature.\n");
+        $run([PHP_BINARY, $binary, 'release:github', '--repository=example/package', '--notes-file=notes.md', '--asset=VERSION', '--commit='.str_repeat('1', 40), '--dry-run'], $workspace);
         $run([PHP_BINARY, $binary, 'bump', '--dry-run'], $workspace);
         if ("1.2.3\n" !== file_get_contents($workspace.'/VERSION')) {
             throw new RuntimeException('Dry run modified a file.');
