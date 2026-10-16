@@ -5,6 +5,8 @@ Version numbers follow [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-10-16
+
 ### Changed
 
 - Require PHP 8.3+, Symfony 7.4, and current development tooling.
@@ -31,4 +33,5 @@ Version numbers follow [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.
 - False file-prefix matches, replacements inside larger versions, and unsafe symlink traversal.
 - Untracked-file checks, duplicate-tag preflight, and semantic-version precedence.
 
-[Unreleased]: https://github.com/janalis/bumpversion/compare/0c7d1d1...HEAD
+[Unreleased]: https://github.com/janalis/bumpversion/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/janalis/bumpversion/compare/0c7d1d1...v0.1.0
