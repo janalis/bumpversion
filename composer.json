@@ -1,44 +1,54 @@
 {
     "name": "janalis/bumpversion",
-    "type": "project",
-    "description": "A small command line tool aiming to simplify releasing process by updating all version strings in your source code by the correct increment.",
+    "type": "library",
+    "description": "A PHP CLI to update version strings and prepare Git releases.",
     "homepage": "https://github.com/janalis/bumpversion",
     "license": "MIT",
+    "require": {
+        "php": "^8.3",
+        "symfony/console": "^7.4",
+        "symfony/finder": "^7.4",
+        "symfony/process": "^7.4",
+        "symfony/yaml": "^7.4"
+    },
+    "require-dev": {
+        "friendsofphp/php-cs-fixer": "^3.0",
+        "phpstan/phpstan": "^2.0",
+        "phpunit/phpunit": "^12.0"
+    },
     "autoload": {
         "psr-4": {
-            "App\\": "src/"
+            "Janalis\\Bumpversion\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "App\\Tests\\": "tests/"
+            "Janalis\\Bumpversion\\Tests\\": "tests/"
         }
     },
     "bin": [
         "bin/bumpversion"
     ],
     "config": {
-        "bin-dir": "bin",
-        "preferred-install": {
-            "*": "dist"
-        },
-        "sort-packages": true
-    },
-    "require": {
-        "php": "^7.1.3",
-        "symfony/console": "4.3.*",
-        "symfony/finder": "4.3.*",
-        "symfony/process": "^4.3",
-        "symfony/yaml": "4.3.*"
-    },
-    "require-dev": {
-        "friendsofphp/php-cs-fixer": "^2.15",
-        "phpunit/phpunit": "^8.2",
-        "symfony/var-dumper": "^4.3"
+        "sort-packages": true,
+        "platform": {
+            "php": "8.3.0"
+        }
     },
     "scripts": {
-        "lint": [
-            "php-cs-fixer fix src --rules=@Symfony"
-        ]
+        "test": "phpunit",
+        "lint": "php-cs-fixer fix --dry-run --diff",
+        "format": "php-cs-fixer fix",
+        "analyse": "phpstan analyse --memory-limit=512M",
+        "build": "@php -d phar.readonly=0 tools/build-phar.php",
+        "verify": [
+            "@composer validate --strict",
+            "@lint",
+            "@analyse",
+            "@test",
+            "@security"
+        ],
+        "security": "@composer audit",
+        "smoke": "@php tools/smoke.php"
     }
 }

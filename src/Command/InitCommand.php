@@ -2,77 +2,90 @@
 
 declare(strict_types=1);
 
-namespace App\Command;
+namespace Janalis\Bumpversion\Command;
 
-use App\Configuration\YamlConfiguration;
-use App\Version\SemanticVersion;
+use Janalis\Bumpversion\Configuration\YamlConfiguration;
+use Janalis\Bumpversion\Release\ReleasePlanner;
+use Janalis\Bumpversion\Version\SemanticVersion;
 use Symfony\Component\Console\Command\Command;
+use Symfony\Component\Console\Helper\QuestionHelper;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Question\Question;
 
-class InitCommand extends Command
+final class InitCommand extends Command
 {
-    /**
-     * {@inheritdoc}
-     */
-    protected static $defaultName = 'init';
-
-    /**
-     * {@inheritdoc}
-     */
     protected function configure(): void
     {
-        $this
-            // the short description shown while running "php bin/console list"
-            ->setDescription('Creates configuration file')
-
-            // the full command description shown when running the command with
-            // the "--help" option
-            ->setHelp('This command allows you to create a bumpversion configuration file...')
-
-            ->addOption(
-                'configuration',
-                'c',
-                InputOption::VALUE_REQUIRED,
-                'write configuration to YAML file'
-            )
-        ;
+        $this->setName('init')->setDescription('Create a YAML configuration without overwriting an existing file.')
+            ->addOption('configuration', 'c', InputOption::VALUE_REQUIRED, 'Configuration destination', 'bumpversion.yaml')
+            ->addOption('current-version', null, InputOption::VALUE_REQUIRED, 'Current semantic version')
+            ->addOption('path', null, InputOption::VALUE_REQUIRED | InputOption::VALUE_IS_ARRAY, 'File or directory relative to the configuration (repeatable)')
+            ->addOption('changelog', null, InputOption::VALUE_REQUIRED, 'Existing changelog file');
     }
 
-    /**
-     * {@inheritdoc}
-     */
-    public function execute(InputInterface $input, OutputInterface $output): ?int
+    protected function execute(InputInterface $input, OutputInterface $output): int
     {
-        $filename = $input->getOption('configuration') ?? 'bumpversion.yaml';
-        $helper = $this->getHelper('question');
-
-        $question = new Question('What is the current version of your application? ', '1.0.0');
-        $version = SemanticVersion::parse($helper->ask($input, $output, $question));
-
-        $question = new Question('Which changelog file should be updated? (press return to add a path, leave empty to continue) ');
-        $changelog = null;
-        if ($path = $helper->ask($input, $output, $question)) {
-            if (!file_exists($path)) {
-                $output->writeln(sprintf('File "%s" does not exist', $path));
-            }
-            $changelog = $path;
+        $filename = $input->getOption('configuration');
+        if (str_starts_with($filename, '~/') && false !== getenv('HOME')) {
+            $filename = getenv('HOME').substr($filename, 1);
         }
-
-        $question = new Question('In which directory/file the version should be bumped? (press return to add a path, leave empty to continue) ');
-        $paths = [];
-        while ($path = $helper->ask($input, $output, $question)) {
-            if (!file_exists($path)) {
-                $output->writeln(sprintf('File "%s" does not exist', $path));
-            }
-            $paths[] = $path;
+        if (file_exists($filename) || is_link($filename)) {
+            throw new \RuntimeException('Configuration already exists.');
         }
+        $root = realpath(dirname($filename));
+        if (false === $root) {
+            throw new \RuntimeException('Configuration directory must exist.');
+        }
+        $version = $input->getOption('current-version');
+        $paths = $input->getOption('path');
+        $changelog = $input->getOption('changelog');
+        if (!$input->isInteractive() && (null === $version || [] === $paths)) {
+            throw new \InvalidArgumentException('Noninteractive init requires --current-version and at least one --path.');
+        }
+        $helper = new QuestionHelper();
+        if (null === $version) {
+            $question = new Question('Current version [1.0.0]: ', '1.0.0');
+            $question->setValidator(static fn ($value) => (string) SemanticVersion::parse($value));
+            $version = $helper->ask($input, $output, $question);
+        }
+        if ($input->isInteractive() && null === $changelog) {
+            $changelog = $helper->ask($input, $output, new Question('Changelog file (leave empty to skip): '));
+        }
+        if ([] === $paths) {
+            while (($path = $helper->ask($input, $output, new Question('File/directory to update (leave empty to finish): '))) !== null && '' !== $path) {
+                ReleasePlanner::path($root, $path);
+                $paths[] = $path;
+            }
+        }
+        if ([] === $paths) {
+            throw new \InvalidArgumentException('At least one path is required.');
+        }
+        foreach ($paths as $path) {
+            ReleasePlanner::path($root, $path);
+        }
+        if (null !== $changelog && !is_file(ReleasePlanner::path($root, $changelog))) {
+            throw new \InvalidArgumentException('Changelog must be an existing regular file.');
+        }
+        $config = new YamlConfiguration($paths, SemanticVersion::parse($version), $changelog);
+        $handle = fopen($filename, 'x');
+        if (false === $handle) {
+            throw new \RuntimeException('Cannot create configuration.');
+        }
+        try {
+            $contents = $config->contents();
+            if (fwrite($handle, $contents) !== strlen($contents)) {
+                throw new \RuntimeException('Cannot write configuration.');
+            }
+        } catch (\Throwable $exception) {
+            fclose($handle);
+            unlink($filename);
+            throw $exception;
+        }
+        fclose($handle);
+        $output->writeln('Configuration created.');
 
-        $config = new YamlConfiguration($paths, $version, $changelog);
-        $config->save($filename);
-
-        return 0;
+        return Command::SUCCESS;
     }
 }

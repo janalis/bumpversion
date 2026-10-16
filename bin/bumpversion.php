@@ -1,14 +1,14 @@
 <?php
 
-require __DIR__.'/../vendor/autoload.php';
+declare(strict_types=1);
 
-use App\Command\BumpCommand;
-use App\Command\InitCommand;
+use Janalis\Bumpversion\Command\BumpCommand;
+use Janalis\Bumpversion\Command\InitCommand;
 use Symfony\Component\Console\Application;
 
-$application = new Application(basename(__FILE__, '.php'));
+require $GLOBALS['_composer_autoload_path'] ?? __DIR__.'/../vendor/autoload.php';
 
-$application->add(new BumpCommand());
-$application->add(new InitCommand());
-
-$application->run();
+$application = new Application('bumpversion');
+$application->addCommand(new BumpCommand());
+$application->addCommand(new InitCommand());
+exit($application->run());

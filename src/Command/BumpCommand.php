@@ -2,199 +2,95 @@
 
 declare(strict_types=1);
 
-namespace App\Command;
+namespace Janalis\Bumpversion\Command;
 
-use App\Configuration\YamlConfiguration;
-use App\Version\SemanticVersion;
-use App\Version\VersionInterface;
-use App\VersionControlSystem\ChangeInterface;
-use App\VersionControlSystem\GitVersionControlSystem;
-use App\VersionControlSystem\VersionControlSystemRepository;
+use Janalis\Bumpversion\Changelog\KeepAChangelog;
+use Janalis\Bumpversion\Configuration\YamlConfiguration;
+use Janalis\Bumpversion\Release\ReleasePlanner;
+use Janalis\Bumpversion\Version\SemanticVersion;
+use Janalis\Bumpversion\VersionControlSystem\GitVersionControlSystem;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
-use Symfony\Component\Finder\Finder;
-use Symfony\Component\Finder\SplFileInfo;
 
-class BumpCommand extends Command
+final class BumpCommand extends Command
 {
-    private const VERSIONS = [
-        SemanticVersion::MAJOR,
-        SemanticVersion::MINOR,
-        SemanticVersion::PATCH,
-    ];
-
-    /**
-     * {@inheritdoc}
-     */
-    protected static $defaultName = 'bump';
-
-    /**
-     * @var VersionControlSystemRepository
-     */
-    private $vcsRepository;
-
-    /**
-     * {@inheritdoc}
-     */
-    public function __construct()
-    {
-        $this->vcsRepository = new VersionControlSystemRepository([
-            new GitVersionControlSystem(),
-        ]);
-        parent::__construct();
-    }
-
-    /**
-     * {@inheritdoc}
-     */
     protected function configure(): void
     {
-        $this
-            // the short description shown while running "php bin/console list"
-            ->setDescription('Bumps version')
-
-            // the full command description shown when running the command with
-            // the "--help" option
-            ->setHelp('This command allows you to bump a version...')
-
-            ->addOption(
-                'configuration',
-                'c',
-                InputOption::VALUE_REQUIRED,
-                'read configuration from YAML file'
-            )
-
-            ->addOption(
-                'pre-release',
-                'p',
-                InputOption::VALUE_REQUIRED,
-                'the pre-release identifier (e.g "alpha", "beta", "rc")'
-            )
-
-            ->addOption(
-                'type',
-                't',
-                InputOption::VALUE_REQUIRED,
-                sprintf('the version type ("%s")', implode('", "', static::VERSIONS))
-            )
-
-            ->addOption(
-                'version-control-system',
-                'vcs',
-                InputOption::VALUE_REQUIRED,
-                sprintf('version control system ("%s")', implode('", "', $this->vcsRepository->getIdentifiers()))
-            )
-        ;
+        $this->setName('bump')->setDescription('Update configured version strings and optionally prepare a Git release.')
+            ->addOption('configuration', 'c', InputOption::VALUE_REQUIRED, 'YAML configuration file', 'bumpversion.yaml')
+            ->addOption('type', 't', InputOption::VALUE_REQUIRED, 'major, minor, or patch')
+            ->addOption('pre-release', 'p', InputOption::VALUE_REQUIRED, 'Named prerelease identifier, e.g. alpha')
+            ->addOption('new-version', null, InputOption::VALUE_REQUIRED, 'Explicit target semantic version')
+            ->addOption('dry-run', null, InputOption::VALUE_NONE, 'Preview without writing files, commits, or tags')
+            ->addOption('date', null, InputOption::VALUE_REQUIRED, 'Changelog release date (YYYY-MM-DD; defaults to today in UTC)')
+            ->addOption('tag-prefix', null, InputOption::VALUE_REQUIRED, 'Git tag prefix (inferred from the changelog comparison link, otherwise empty)')
+            ->addOption('commit', null, InputOption::VALUE_NONE, 'Commit only the files updated by this command')
+            ->addOption('tag', null, InputOption::VALUE_NONE, 'Tag HEAD (after committing when --commit is also supplied)')
+            ->addOption('version-control-system', 'vcs', InputOption::VALUE_REQUIRED, 'Legacy alias: git enables both --commit and --tag');
     }
 
-    /**
-     * {@inheritdoc}
-     */
-    public function execute(InputInterface $input, OutputInterface $output): ?int
+    protected function execute(InputInterface $input, OutputInterface $output): int
     {
-        $preRelease = $input->getOption('pre-release');
-
-        $type = $input->getOption('type');
-        if ($type && !in_array($type, static::VERSIONS, true)) {
-            throw new \RuntimeException(sprintf('Invalid type "%s" (type must be one of: "%s")', $type, implode('", "', static::VERSIONS)));
+        $target = $input->getOption('new-version');
+        if (null !== $target && (null !== $input->getOption('type') || null !== $input->getOption('pre-release'))) {
+            throw new \InvalidArgumentException('--new-version cannot be combined with --type or --pre-release.');
         }
-
-        $vcs = null;
-        if (($identifier = $input->getOption('version-control-system')) && !($vcs = $this->vcsRepository->find($identifier))) {
-            throw new \RuntimeException(sprintf('Unknown vcs "%s" (vcs must be one of: "%s")', $identifier, implode('", "', $this->vcsRepository->getIdentifiers())));
+        $vcs = $input->getOption('version-control-system');
+        if (null !== $vcs && 'git' !== $vcs) {
+            throw new \InvalidArgumentException('Only git is supported as a version control system.');
         }
-        if ($vcs && $vcs->isDirty()) {
-            throw new \RuntimeException('Please commit/stash your changes before bumping version.');
+        $filename = YamlConfiguration::resolve($input->getOption('configuration'));
+        $config = YamlConfiguration::load($filename);
+        $current = (string) $config->version;
+        $next = null !== $target ? SemanticVersion::parse($target) : $config->version->next($input->getOption('type'), $input->getOption('pre-release'));
+        if ($next->compare($config->version) <= 0) {
+            throw new \InvalidArgumentException('Target version must have higher SemVer precedence than the current version.');
         }
-
-        $filename = $input->getOption('configuration') ?? 'bumpversion.yaml';
-        if (!file_exists($filename)) {
-            if (!file_exists("$filename.dist")) {
-                if (!$input->isInteractive()) {
-                    throw new \RuntimeException(sprintf('Configuration file "%s" not found in "%s"', $filename, getcwd()));
-                }
-
-                return $this->getApplication()->find('init')->execute($input, $output);
+        $prefix = $input->getOption('tag-prefix');
+        if (null === $prefix && null !== $config->changelog) {
+            $contents = file_get_contents(ReleasePlanner::path(dirname($filename), $config->changelog));
+            if (false === $contents) {
+                throw new \RuntimeException('Cannot read changelog.');
             }
-
-            $filename = "$filename.dist";
+            $prefix = KeepAChangelog::tagPrefix($contents, $current);
         }
-        $config = YamlConfiguration::parseFile($filename, SemanticVersion::class);
-
-        $changelog = $config->getChangelog();
-        $paths = $config->getPaths();
-        $currentVersion = $config->getVersion();
-        if (!$type && !$preRelease && (!$currentVersion || !$currentVersion->isPreRelease())) {
-            $type = SemanticVersion::PATCH;
+        $prefix ??= '';
+        $tagName = $prefix.$next;
+        if (null !== $input->getOption('date') && null === $config->changelog) {
+            throw new \InvalidArgumentException('--date requires a configured changelog.');
         }
-        $nextVersion = $currentVersion ? $currentVersion->getNextVersion($type, $preRelease) : new SemanticVersion(1, 0, 0);
-
-        if ($currentVersion) {
-            $output->writeln('Bumping version...');
-            $this->replaceInFiles($paths, $currentVersion, $nextVersion);
+        $commit = $input->getOption('commit') || 'git' === $vcs;
+        $tag = $input->getOption('tag') || 'git' === $vcs;
+        $git = $commit || $tag ? new GitVersionControlSystem(dirname($filename)) : null;
+        $git?->preflight($tagName, $tag, $commit);
+        $planner = new ReleasePlanner();
+        $plan = $planner->plan($filename, $config, $next, $input->getOption('date'), $prefix);
+        if ($commit) {
+            $git?->validateFiles($plan->files());
         }
-
-        $config->setVersion($nextVersion);
-        $config->save($filename);
-
-        if ($vcs && $changelog) {
-            $this->updateChangelog($changelog, $nextVersion, $vcs->getChanges($currentVersion));
+        $output->writeln("$current → $next", OutputInterface::OUTPUT_RAW);
+        foreach ($planner->reports as $report) {
+            $output->writeln($report, OutputInterface::OUTPUT_RAW);
         }
-
-        if ($vcs) {
-            $vcs->release((string) $currentVersion, (string) $nextVersion);
+        foreach ($plan->files() as $file) {
+            $output->writeln('Update '.substr($file, strlen(dirname($filename)) + 1), OutputInterface::OUTPUT_RAW);
         }
-
-        return 0;
-    }
-
-    /**
-     * Updates current version to next version in files contained in paths.
-     *
-     * @param array            $paths          paths containing files to update
-     * @param VersionInterface $currentVersion current version
-     * @param VersionInterface $nextVersion    next version
-     */
-    private function replaceInFiles(array $paths, VersionInterface $currentVersion, VersionInterface $nextVersion): void
-    {
-        $finder = new Finder();
-        $finder
-            ->in(getcwd())
-            ->path(array_map(static function (string $path): string {
-                return sprintf('/^%s/', preg_quote($path, '/'));
-            }, $paths))
-            ->contains((string) $currentVersion)
-        ;
-
-        /** @var SplFileInfo $path */
-        foreach ($finder->files() as $path) {
-            file_put_contents($path->getPathname(), preg_replace(
-                sprintf('/%s/', preg_quote((string) $currentVersion, '/')),
-                (string) $nextVersion,
-                file_get_contents($path->getPathname())
-            ));
+        if ($commit) {
+            $output->writeln('Create release commit.');
         }
-    }
+        if ($tag) {
+            $output->writeln('Tag '.($commit ? 'release commit' : 'existing HEAD (updated files remain uncommitted)').' as '.$tagName, OutputInterface::OUTPUT_RAW);
+        }
+        if ($input->getOption('dry-run')) {
+            $output->writeln('Dry run: nothing changed.');
 
-    /**
-     * Updates changelog appending changes at version.
-     *
-     * @param string           $filename changelog filename
-     * @param VersionInterface $version  version
-     * @param array            $changes  changes
-     */
-    private function updateChangelog(string $filename, VersionInterface $version, array $changes): void
-    {
-        file_put_contents($filename, implode("\r\n", array_merge([
-            '',
-            sprintf('## %s', $version),
-            '',
-        ], array_map(static function (ChangeInterface $change): string {
-            return sprintf('* [%s](%s) (%s)', $change->getSubject(), $change->getIdentifier(), $change->getAuthor());
-        }, $changes), [
-            '',
-        ])), FILE_APPEND | LOCK_EX);
+            return Command::SUCCESS;
+        }
+        $plan->apply();
+        $git?->release($plan->files(), $current, (string) $next, $commit, $tag, $tagName);
+
+        return Command::SUCCESS;
     }
 }

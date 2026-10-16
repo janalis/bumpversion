@@ -1,0 +1,22 @@
+name: Bug report
+description: Report incorrect version updates or CLI behavior.
+body:
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: Include commands, a small configuration, and synthetic sample files. Remove credentials, private URLs, and personal information.
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Expected and actual behavior
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: PHP, operating system, and package versions
+    validations:
+      required: true

@@ -1,0 +1,5 @@
+* text=auto eol=lf
+/.github export-ignore
+/.cache export-ignore
+/dist export-ignore
+/AGENTS.md export-ignore

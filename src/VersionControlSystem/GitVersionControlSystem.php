@@ -2,81 +2,90 @@
 
 declare(strict_types=1);
 
-namespace App\VersionControlSystem;
+namespace Janalis\Bumpversion\VersionControlSystem;
 
-use App\Version\VersionInterface;
+use Janalis\Bumpversion\Version\SemanticVersion;
 use Symfony\Component\Process\Process;
 
-class GitVersionControlSystem implements VersionControlSystemInterface
+final class GitVersionControlSystem
 {
-    public function getChanges(?string $from = null, ?string $to = null): array
+    public function __construct(private readonly string $directory)
     {
-        $output = $this->execute(['git', 'log', '--reverse', '--pretty=format:"%H %s by %an at %ad"', implode('...', [$from ?? 'HEAD', $to ?? 'HEAD'])]);
-
-        return array_map(static function (string $log): ChangeInterface {
-            preg_match('/^([\w]+) (.*) by (.*) at (.*)$/', trim($log), $matches);
-            [, $identifier, $subject, $author, $date] = $matches;
-            $date = new \DateTime($date);
-
-            return new Change($identifier, $subject, $author, $date);
-        }, preg_split("/\r\n|\n|\r/", $output));
     }
 
-    public function getIdentifier(): string
+    /** @param list<string> $arguments */
+    public function run(array $arguments): string
     {
-        return 'git';
+        $process = new Process(['git', '--literal-pathspecs', ...$arguments], $this->directory);
+        $process->mustRun();
+
+        return $process->getOutput();
     }
 
-    public function getProcess(array $command): Process
+    public function preflight(string $next, bool $tag, bool $commit = false): void
     {
-        return new Process($command);
+        $this->run(['rev-parse', '--verify', 'HEAD']);
+        if ($commit) {
+            $this->run(['var', 'GIT_AUTHOR_IDENT']);
+            $this->run(['var', 'GIT_COMMITTER_IDENT']);
+        }
+        if ('' !== trim($this->run(['status', '--porcelain', '--untracked-files=all']))) {
+            throw new \RuntimeException('Commit or stash all changes, including untracked files, before a Git release.');
+        }
+        if ($tag) {
+            $this->run(['check-ref-format', 'refs/tags/'.$next]);
+        }
+        if ($tag && in_array($next, explode("\n", trim($this->run(['tag', '--list']))), true)) {
+            throw new \RuntimeException('Release tag already exists: '.$next);
+        }
     }
 
-    public function getVersions(string $versioning): array
+    /** @param list<string> $files */
+    public function validateFiles(array $files): void
     {
-        $output = $this->execute(['git', 'tag', '-l']);
+        foreach ($files as $file) {
+            $process = new Process(['git', '--no-literal-pathspecs', 'check-ignore', '--quiet', '--', $file], $this->directory);
+            $process->run();
+            if (0 === $process->getExitCode()) {
+                throw new \RuntimeException('A planned release file is ignored by Git.');
+            }
+            if (1 !== $process->getExitCode()) {
+                throw new \RuntimeException('Cannot check Git ignore rules: '.$process->getErrorOutput());
+            }
+        }
+    }
 
-        $versions = array_map(static function (string $tag) use ($versioning): VersionInterface {
-            return call_user_func(sprintf('%s::%s', $versioning, 'parse'), $tag);
-        }, preg_split("/\r\n|\n|\r/", $output));
-
-        usort($versions, static function (VersionInterface $a, VersionInterface $b): int {
-            return version_compare((string) $a, (string) $b);
-        });
+    /** @return list<SemanticVersion> */
+    public function versions(): array
+    {
+        $versions = [];
+        foreach (explode("\n", trim($this->run(['tag', '--list']))) as $tag) {
+            try {
+                $versions[] = SemanticVersion::parse(preg_replace('/^v/', '', $tag) ?? $tag);
+            } catch (\InvalidArgumentException) {
+                // Repositories may contain tags unrelated to releases.
+            }
+        }
+        usort($versions, static fn ($a, $b) => $a->compare($b));
 
         return $versions;
     }
 
-    public function isDirty(): bool
+    /** @param list<string> $files */
+    public function release(array $files, string $current, string $next, bool $commit, bool $tag, ?string $tagName = null): void
     {
+        $committed = false;
         try {
-            $this->execute(['git', 'diff-index', '--quiet', 'HEAD']);
-        } catch (\Exception $exception) {
-            return true;
+            if ($commit) {
+                $this->run(['add', '--', ...$files]);
+                $this->run(['commit', '-m', "Bump version: $current → $next", '--', ...$files]);
+                $committed = true;
+            }
+            if ($tag) {
+                $this->run(['tag', '--', $tagName ?? $next]);
+            }
+        } catch (\Throwable $exception) {
+            throw new \RuntimeException(($committed ? 'Release commit created, but tagging failed. ' : 'Files updated, but Git release failed. Inspect the working tree and index. ').$exception->getMessage(), 0, $exception);
         }
-
-        return false;
-    }
-
-    public function release(string $currentVersion, string $nextVersion, ?string $description = null): void
-    {
-        if ($this->isDirty()) {
-            $this->execute(['git', 'add', '.']);
-            $this->execute(['git', 'commit', '-m', sprintf('bump version %s → %s', $currentVersion, $nextVersion)]);
-        }
-
-        $this->execute(array_merge(['git', 'tag', $nextVersion], $description ? ['-m', $description] : []));
-    }
-
-    private function execute(array $command): string
-    {
-        $process = $this->getProcess($command);
-        $process->mustRun();
-
-        if ($code = $process->getExitCode()) {
-            throw new \RuntimeException($process->getErrorOutput(), $code);
-        }
-
-        return $process->getOutput();
     }
 }

@@ -13,3 +13,13 @@ vendor/*
 /phpunit.xml
 .phpunit.result.cache
 ###< phpunit/phpunit ###
+
+/.cache/
+/dist/
+/.DS_Store
+/.env
+/.env.*
+/auth.json
+/docs/node_modules/
+/docs/.vitepress/cache/
+/docs/.vitepress/dist/
