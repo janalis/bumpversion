@@ -5,6 +5,11 @@ Version numbers follow [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.
 
 ## [Unreleased]
 
+### Changed
+
+- Support Guzzle 8 for HTTP publishing.
+- Upgrade the Pages artifact action and documentation tooling.
+
 ## [0.1.1] - 2026-10-16
 
 ### Added
