@@ -10,6 +10,10 @@ Version numbers follow [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.
 - Support Guzzle 8 for HTTP publishing.
 - Upgrade the Pages artifact action and documentation tooling.
 
+### Security
+
+- Bundle Symfony 7.4.23 components in the PHAR to address YAML parser and HTTP client advisories.
+
 ## [0.1.1] - 2026-10-16
 
 ### Added
