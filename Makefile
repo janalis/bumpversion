@@ -22,4 +22,4 @@ verify:
 	composer verify
 	$(MAKE) smoke
 	$(MAKE) docs
-	npm audit --prefix docs
+	php tools/audit-docs.php
