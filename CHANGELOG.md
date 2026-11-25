@@ -5,6 +5,10 @@ Version numbers follow [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.
 
 ## [Unreleased]
 
+### Fixed
+
+- Restore the standard documentation dependency audit after removal of the previously accepted advisory.
+
 ## [0.1.2] - 2026-11-05
 
 ### Changed
