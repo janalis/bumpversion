@@ -37,7 +37,4 @@ Run `make docs-dev` to preview the documentation and `make docs` to build it.
 The stable VitePress dependency uses a Vite 6 override to include security fixes;
 keep that override until the upstream stable release upgrades its Vite dependency.
 
-`make verify` audits the documentation tooling with `tools/audit-docs.php`, which
-fails on any advisory it does not list. It lists GHSA-fc5q-39xc-vjpf for `picomatch`
-because no patched release exists. Once a patched release is available, update
-`docs/package-lock.json` and remove the entry; the audit fails until the entry is gone.
+`make verify` runs `npm audit --prefix docs` and fails on any reported advisory.
